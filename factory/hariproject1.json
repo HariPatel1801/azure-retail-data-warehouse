@@ -1,0 +1,15 @@
+{
+	"name": "hariproject1",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "canadacentral",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "1f4a2827-381b-4618-a59c-6f62e351605d",
+		"tenantId": "375f0d6f-8b43-4d47-be1e-bb8816a498d0"
+	}
+}

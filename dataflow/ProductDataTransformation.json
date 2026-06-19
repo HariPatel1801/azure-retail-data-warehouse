@@ -1,0 +1,96 @@
+{
+	"name": "ProductDataTransformation",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "ProductDataSink",
+						"type": "DatasetReference"
+					},
+					"name": "dfproductsbronzetosilver"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "CleanedProductData",
+						"type": "DatasetReference"
+					},
+					"name": "sink"
+				},
+				{
+					"dataset": {
+						"referenceName": "RejectedProductData",
+						"type": "DatasetReference"
+					},
+					"name": "rejectedDataSink"
+				}
+			],
+			"transformations": [
+				{
+					"name": "selectColumns"
+				},
+				{
+					"name": "derivedColumn"
+				},
+				{
+					"name": "NullValueCheck"
+				},
+				{
+					"name": "validProductAggregate"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          ProductID as double,",
+				"          ProductName as string,",
+				"          Category as string,",
+				"          Price as double,",
+				"          StockQuantity as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     wildcardPaths:['**/products_sample.csv*']) ~> dfproductsbronzetosilver",
+				"dfproductsbronzetosilver select(mapColumn(",
+				"          ProductID,",
+				"          ProductName,",
+				"          Category,",
+				"          Price,",
+				"          StockQuantity",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> selectColumns",
+				"selectColumns derive(ProductID = toInteger(ProductID),",
+				"          ProductName = trim(ProductName),",
+				"          Category = iif(isNull(Category),'unknown', trim(Category)),",
+				"          Price = toDecimal(Price, 10, 2),",
+				"          StockQuantity = toInteger(StockQuantity)) ~> derivedColumn",
+				"derivedColumn split(!isNull(ProductID) && !isNull(ProductName) && !isNull(Price) && Price > 0 && StockQuantity > 0,",
+				"     disjoint: false) ~> NullValueCheck@(ValidProducts, RejectedProducts)",
+				"NullValueCheck@ValidProducts aggregate(groupBy(ProductID),",
+				"     ProductName = first(ProductName),",
+				"          Category = first(Category),",
+				"          Price = first(Price),",
+				"          StockQuantity = first(StockQuantity)) ~> validProductAggregate",
+				"validProductAggregate sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> sink",
+				"NullValueCheck@RejectedProducts sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> rejectedDataSink"
+			]
+		}
+	}
+}

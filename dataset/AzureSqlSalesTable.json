@@ -1,0 +1,17 @@
+{
+	"name": "AzureSqlSalesTable",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureSqlDatabase",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "stg_Sales"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

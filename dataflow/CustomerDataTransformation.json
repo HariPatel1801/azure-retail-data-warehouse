@@ -1,0 +1,124 @@
+{
+	"name": "CustomerDataTransformation",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "customerDataSink",
+						"type": "DatasetReference"
+					},
+					"name": "dfcustomersbronzetosilver"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "CleanedCustomerData",
+						"type": "DatasetReference"
+					},
+					"name": "CustomerSilverSink"
+				},
+				{
+					"dataset": {
+						"referenceName": "RejectedCustomerData",
+						"type": "DatasetReference"
+					},
+					"name": "rejectedCustomersink"
+				}
+			],
+			"transformations": [
+				{
+					"name": "selectColumns"
+				},
+				{
+					"name": "derivedColumn"
+				},
+				{
+					"name": "splitCustomerName"
+				},
+				{
+					"name": "ValidCustomerAggregate"
+				},
+				{
+					"name": "derivedColumnIsValid"
+				},
+				{
+					"name": "selectValidColumns"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          CustomerID as double,",
+				"          CustomerName as string,",
+				"          Email as string,",
+				"          Phone as string,",
+				"          City as string,",
+				"          Country as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     inferDriftedColumnTypes: true,",
+				"     ignoreNoFilesFound: false,",
+				"     wildcardPaths:['**/*.csv*']) ~> dfcustomersbronzetosilver",
+				"dfcustomersbronzetosilver select(mapColumn(",
+				"          CustomerID,",
+				"          CustomerName,",
+				"          Email,",
+				"          Phone,",
+				"          City,",
+				"          Country",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> selectColumns",
+				"selectColumns derive(CustomerID = toInteger(CustomerID),",
+				"          Email = lower(trim(Email)),",
+				"          Phone = trim(Phone),",
+				"          City = trim(City),",
+				"          Country = trim(Country),",
+				"          CustomerName = trim(CustomerName)) ~> derivedColumn",
+				"derivedColumn split(!isNull(CustomerID) && !isNull(CustomerName),",
+				"     disjoint: false) ~> splitCustomerName@(ValidCustomers, RejectedCustomers)",
+				"splitCustomerName@ValidCustomers aggregate(groupBy(CustomerID),",
+				"     CustomerName = first(CustomerName),",
+				"          Email = first(Email),",
+				"          Phone = first(Phone),",
+				"          City = first(City),",
+				"          Country = first(Country)) ~> ValidCustomerAggregate",
+				"ValidCustomerAggregate derive(Email_Valid = iif(regexMatch(Email, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\\\.[A-Za-z]{2,}$'), Email,'invalid@unknown.com'),",
+				"          Phone_valid = iif(regexMatch(Phone,'^(\\\\+?1[\\\\s-]?)?(\\\\(\\\\d{3}\\\\)|\\\\d{3})[\\\\s-]?\\\\d{3}[\\\\s-]?\\\\d{4}$'),Phone,'0000000000'),",
+				"          LoadDate = currentDate(),",
+				"          City_valid = iif(isNull(City),'unknown',City),",
+				"          Country_valid = iif(isNull(Country),'unknown',Country)) ~> derivedColumnIsValid",
+				"derivedColumnIsValid select(mapColumn(",
+				"          CustomerID,",
+				"          CustomerName,",
+				"          Email = Email_Valid,",
+				"          Phone = Phone_valid,",
+				"          City = City_valid,",
+				"          Country = Country_valid,",
+				"          Date = LoadDate",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> selectValidColumns",
+				"selectValidColumns sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> CustomerSilverSink",
+				"splitCustomerName@RejectedCustomers sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> rejectedCustomersink"
+			]
+		}
+	}
+}

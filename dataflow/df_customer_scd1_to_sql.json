@@ -1,0 +1,190 @@
+{
+	"name": "df_customer_scd1_to_sql",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "CleanedCustomerData",
+						"type": "DatasetReference"
+					},
+					"name": "CustomerSilverSource"
+				},
+				{
+					"dataset": {
+						"referenceName": "CustomerDimTable",
+						"type": "DatasetReference"
+					},
+					"name": "TargetCustomerSQL"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "AzureSqlDimCustomerTable",
+						"type": "DatasetReference"
+					},
+					"name": "sink",
+					"rejectedDataLinkedService": {
+						"referenceName": "ADLS_LS",
+						"type": "LinkedServiceReference"
+					}
+				},
+				{
+					"dataset": {
+						"referenceName": "AzureSqlDimCustomerTable",
+						"type": "DatasetReference"
+					},
+					"name": "sinkUpdate",
+					"rejectedDataLinkedService": {
+						"referenceName": "ADLS_LS",
+						"type": "LinkedServiceReference"
+					}
+				}
+			],
+			"transformations": [
+				{
+					"name": "selectColumns"
+				},
+				{
+					"name": "GenerateHash"
+				},
+				{
+					"name": "lookup"
+				},
+				{
+					"name": "split"
+				},
+				{
+					"name": "derivedColumnInsert"
+				},
+				{
+					"name": "derivedColumnUpdate"
+				},
+				{
+					"name": "alterRow"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          CustomerID as integer,",
+				"          CustomerName as string,",
+				"          Email as string,",
+				"          Phone as string,",
+				"          City as string,",
+				"          Country as string,",
+				"          Date as date",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     format: 'parquet',",
+				"     wildcardPaths:['cleanedCustomerData/*.parquet']) ~> CustomerSilverSource",
+				"source(output(",
+				"          TGT_CustID as integer,",
+				"          TGT_Hash as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT CustomerID AS TGT_CustID, CustomerHash AS TGT_Hash FROM dbo.dim_Customers',",
+				"     format: 'query') ~> TargetCustomerSQL",
+				"CustomerSilverSource select(mapColumn(",
+				"          each(match(1==1),",
+				"               concat('SRC_',$$) = $$)",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> selectColumns",
+				"selectColumns derive(SRC_Hash = md5(concat(toString(SRC_CustomerID), '|', toString(SRC_CustomerName), '|', toString(SRC_Email), '|', toString(SRC_Phone), '|', toString(SRC_City), '|', toString(SRC_Country)))) ~> GenerateHash",
+				"GenerateHash, TargetCustomerSQL lookup(SRC_CustomerID == TGT_CustID,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> lookup",
+				"lookup split(isNull(TGT_Hash),",
+				"     SRC_CustomerID==TGT_CustID && SRC_Hash!=TGT_Hash,",
+				"     disjoint: false) ~> split@(Insert, Update)",
+				"split@Insert derive(src_createdby = 'dataflow',",
+				"          src_updatedby = 'dataflow',",
+				"          src_createddate = currentTimestamp(),",
+				"          src_updateddate = currentTimestamp()) ~> derivedColumnInsert",
+				"split@Update derive(src_updatedate = currentTimestamp(),",
+				"          src_updatedby = 'dataflow-updated ') ~> derivedColumnUpdate",
+				"derivedColumnUpdate alterRow(updateIf(1==1)) ~> alterRow",
+				"derivedColumnInsert sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          CustomerKey as integer,",
+				"          CustomerID as integer,",
+				"          CustomerName as string,",
+				"          Email as string,",
+				"          Phone as string,",
+				"          City as string,",
+				"          Country as string,",
+				"          CustomerHash as string,",
+				"          Created_Date as timestamp,",
+				"          Updated_Date as timestamp,",
+				"          Created_By as string,",
+				"          Updated_By as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          CustomerID = SRC_CustomerID,",
+				"          CustomerName = SRC_CustomerName,",
+				"          Email = SRC_Email,",
+				"          Phone = SRC_Phone,",
+				"          City = SRC_City,",
+				"          Country = SRC_Country,",
+				"          CustomerHash = SRC_Hash,",
+				"          Created_Date = src_createddate,",
+				"          Updated_Date = src_updateddate,",
+				"          Created_By = src_createdby,",
+				"          Updated_By = src_updatedby",
+				"     )) ~> sink",
+				"alterRow sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          CustomerKey as integer,",
+				"          CustomerID as integer,",
+				"          CustomerName as string,",
+				"          Email as string,",
+				"          Phone as string,",
+				"          City as string,",
+				"          Country as string,",
+				"          CustomerHash as string,",
+				"          Created_Date as timestamp,",
+				"          Updated_Date as timestamp,",
+				"          Created_By as string,",
+				"          Updated_By as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:false,",
+				"     updateable:true,",
+				"     upsertable:false,",
+				"     keys:['CustomerID'],",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          CustomerID = SRC_CustomerID,",
+				"          CustomerName = SRC_CustomerName,",
+				"          Email = SRC_Email,",
+				"          Phone = SRC_Phone,",
+				"          City = SRC_City,",
+				"          Country = SRC_Country,",
+				"          CustomerHash = SRC_Hash,",
+				"          Updated_Date = src_updatedate,",
+				"          Updated_By = src_updatedby",
+				"     )) ~> sinkUpdate"
+			]
+		}
+	}
+}

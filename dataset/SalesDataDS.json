@@ -1,0 +1,19 @@
+{
+	"name": "SalesDataDS",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "API_LS",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "Json",
+		"typeProperties": {
+			"location": {
+				"type": "HttpServerLocation",
+				"relativeUrl": "kagglesdsdata/datasets/6838784/10999635/sales_sample.json?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=gcp-kaggle-com%40kaggle-161607.iam.gserviceaccount.com%2F20260613%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260613T004853Z&X-Goog-Expires=259200&X-Goog-SignedHeaders=host&X-Goog-Signature=5ce8c7e7fec69bb0c1c480f81b573116977a24dec213e9b8f520e6f79c57936882faa2f3fec07473c749d6e7622c9f0782ed236b2f9b58302cfdf0c1e58c1aac168d112b346b177857fe8110dfc37300fa8eff46e4a20b5492253c88c375a7deb6922cf6f312be57d2828077436b74d3492086e2e0b092239b2847d0709e09ea28743a3cad31cddd6a9cb7ea6459648c221e9fef730acd9441443e409b687fe51262ba2685782515af9bd127e8df3b65cf2af8a11a7b91fdc3eb930dbb94509e99e29d6434caf0c75cf74f1de47182fbbde6077ac21876c3ff1904113ff3542d1c4b5c6caf55d5da2983ca78cadf9f814141e0848432a689101efcdb8d634188"
+			}
+		},
+		"schema": {}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

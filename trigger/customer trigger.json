@@ -1,0 +1,25 @@
+{
+	"name": "customer trigger",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Stopped",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "CustomerDataPipeline",
+					"type": "PipelineReference"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Minute",
+				"interval": 15,
+				"startTime": "2026-06-12T21:08:00",
+				"endTime": "2026-06-12T21:21:00",
+				"timeZone": "Eastern Standard Time"
+			}
+		}
+	}
+}

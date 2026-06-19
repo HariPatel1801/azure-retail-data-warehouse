@@ -1,0 +1,17 @@
+{
+	"name": "AzureSqlProductTable",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureSqlDatabase",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "stg_Products"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

@@ -1,0 +1,23 @@
+{
+	"name": "ProductDataSource",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "API_LS",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "HttpServerLocation",
+				"relativeUrl": "kagglesdsdata/datasets/6838784/10999635/products_sample.csv?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=gcp-kaggle-com%40kaggle-161607.iam.gserviceaccount.com%2F20260613%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260613T012119Z&X-Goog-Expires=259200&X-Goog-SignedHeaders=host&X-Goog-Signature=29ffd53a03ca06f11171d6f4b353b8d4e54f026a66b707ebb4377a1ec2ce8ab42ef7c1a0d5c290c869fcfd682838945c89493ed84333185dcd0b1bb4c8833c5706b9c9b37f317088624c08ebd453bc1e8f8d92240742201b045c47db9c368ef64b8b4f4b75925a9874a1c97b1e3f1975f5098efbac22b47582dfa77748e33e107df119113258bf520347ba755ef2664c4cb8f1a8ad0600c2fb3d0ec532cdfd7c7e45743cf5b75dc24a81e23f010ddf4145d7c5f446c565a7ac5b859eace8334727c665295e0bb5c62a003b1c19bd9d202763802633d524580b19018634bbb52d86bf342aad87b3dfa73114639c4bc29cf8abb1823d3d779386d068358fd1a440"
+			},
+			"columnDelimiter": ",",
+			"escapeChar": "\\",
+			"firstRowAsHeader": true,
+			"quoteChar": "\""
+		},
+		"schema": []
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

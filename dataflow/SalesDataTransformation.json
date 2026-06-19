@@ -1,0 +1,210 @@
+{
+	"name": "SalesDataTransformation",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "salesDataSink",
+						"type": "DatasetReference"
+					},
+					"name": "dfsalesbronzeTosilver"
+				},
+				{
+					"dataset": {
+						"referenceName": "CleanedCustomerData",
+						"type": "DatasetReference"
+					},
+					"name": "CustomerSilverSource"
+				},
+				{
+					"dataset": {
+						"referenceName": "CleanedProductData",
+						"type": "DatasetReference"
+					},
+					"name": "ProductSilverSource"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "CleanedSalesDataNew",
+						"type": "DatasetReference"
+					},
+					"name": "CleanedSalesData"
+				},
+				{
+					"dataset": {
+						"referenceName": "RejectedSalesData",
+						"type": "DatasetReference"
+					},
+					"name": "RejectedSalesData"
+				}
+			],
+			"transformations": [
+				{
+					"name": "selectColumns"
+				},
+				{
+					"name": "derivedColumn"
+				},
+				{
+					"name": "selectOnlyCleanColumns"
+				},
+				{
+					"name": "NotNullRows"
+				},
+				{
+					"name": "aggregateColumns"
+				},
+				{
+					"name": "Customerlookup"
+				},
+				{
+					"name": "Productlookup"
+				},
+				{
+					"name": "NotNullProductID"
+				},
+				{
+					"name": "selectRequiredColumns"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          CustomerID as double,",
+				"          ProductID as short,",
+				"          Quantity as short,",
+				"          SaleDate as date,",
+				"          SaleID as double,",
+				"          TotalAmount as double,",
+				"          amount as double,",
+				"          category as short,",
+				"          date as date,",
+				"          id as double,",
+				"          value1 as double,",
+				"          value2 as short,",
+				"          value3 as short",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     inferDriftedColumnTypes: true,",
+				"     ignoreNoFilesFound: false,",
+				"     documentForm: 'arrayOfDocuments',",
+				"     wildcardPaths:['**/*.json*']) ~> dfsalesbronzeTosilver",
+				"source(output(",
+				"          CustomerID as integer,",
+				"          CustomerName as string,",
+				"          Email as string,",
+				"          Phone as string,",
+				"          City as string,",
+				"          Country as string,",
+				"          Date as date",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     format: 'parquet',",
+				"     wildcardPaths:['cleanedCustomerData/*.parquet']) ~> CustomerSilverSource",
+				"source(output(",
+				"          ProductID as integer,",
+				"          ProductName as string,",
+				"          Category as string,",
+				"          Price as decimal(10,2),",
+				"          StockQuantity as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     format: 'parquet',",
+				"     wildcardPaths:['cleanedProductData/*.parquet']) ~> ProductSilverSource",
+				"dfsalesbronzeTosilver select(mapColumn(",
+				"          CustomerID,",
+				"          ProductID,",
+				"          Quantity,",
+				"          SaleDate,",
+				"          SaleID,",
+				"          TotalAmount,",
+				"          amount,",
+				"          category,",
+				"          date,",
+				"          id,",
+				"          value1,",
+				"          value2,",
+				"          value3",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> selectColumns",
+				"selectColumns derive(SaleID_Clean = toInteger(coalesce(SaleID,id)),",
+				"          CustomerID_Clean = toInteger(coalesce(CustomerID,value1)),",
+				"          ProductID_Clean = toInteger(coalesce(ProductID,id)),",
+				"          SaleDate_Clean = toDate(toString(coalesce(SaleDate,date))),",
+				"          Quantity_Clean = toInteger(coalesce(Quantity,value3,category)),",
+				"          TotalAmount_Clean = toDecimal(coalesce(TotalAmount,amount))) ~> derivedColumn",
+				"derivedColumn select(mapColumn(",
+				"          SaleID = SaleID_Clean,",
+				"          CustomerID = CustomerID_Clean,",
+				"          ProductID = ProductID_Clean,",
+				"          SaleDate = SaleDate_Clean,",
+				"          Quantity = Quantity_Clean,",
+				"          TotalAmount = TotalAmount_Clean",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> selectOnlyCleanColumns",
+				"selectOnlyCleanColumns split(!isNull(SaleID)",
+				"&& !isNull(CustomerID)",
+				"&& !isNull(ProductID)",
+				"&& !isNull(SaleDate)",
+				"&& !isNull(Quantity)",
+				"&& !isNull(TotalAmount)",
+				"&& Quantity > 0",
+				"&& TotalAmount > 0,",
+				"     disjoint: false) ~> NotNullRows@(ValidSalesData, RejectedSalesData)",
+				"NotNullRows@ValidSalesData aggregate(groupBy(SaleID),",
+				"     CustomerID = first(CustomerID),",
+				"          ProductID = first(ProductID),",
+				"          SaleDate = first(SaleDate),",
+				"          Quantity = first(Quantity),",
+				"          TotalAmount = first(TotalAmount)) ~> aggregateColumns",
+				"aggregateColumns, CustomerSilverSource lookup(aggregateColumns@CustomerID == CustomerSilverSource@CustomerID,",
+				"     multiple: false,",
+				"     pickup: 'first',",
+				"     asc(CustomerSilverSource@CustomerID, false),",
+				"     broadcast: 'auto')~> Customerlookup",
+				"Customerlookup, ProductSilverSource lookup(aggregateColumns@ProductID == ProductSilverSource@ProductID,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> Productlookup",
+				"Productlookup split(!isNull(ProductSilverSource@ProductID),",
+				"     disjoint: false) ~> NotNullProductID@(NotNullProductID, NullProductID)",
+				"NotNullProductID@NotNullProductID select(mapColumn(",
+				"          SaleID,",
+				"          CustomerID = NotNullProductID@NotNullProductID@CustomerID,",
+				"          ProductID = NotNullProductID@NotNullProductID@ProductID,",
+				"          SaleDate,",
+				"          Quantity,",
+				"          TotalAmount",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> selectRequiredColumns",
+				"selectRequiredColumns sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> CleanedSalesData",
+				"NotNullRows@RejectedSalesData sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> RejectedSalesData"
+			]
+		}
+	}
+}

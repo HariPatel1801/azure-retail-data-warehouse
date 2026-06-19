@@ -1,0 +1,187 @@
+{
+	"name": "df_product_scd2_to_sql",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "CleanedProductData",
+						"type": "DatasetReference"
+					},
+					"name": "sourceProduct"
+				},
+				{
+					"dataset": {
+						"referenceName": "AzureSqlDimProductTable",
+						"type": "DatasetReference"
+					},
+					"name": "target"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "AzureSqlDimProductTable",
+						"type": "DatasetReference"
+					},
+					"name": "sinkUpdate",
+					"rejectedDataLinkedService": {
+						"referenceName": "ADLS_LS",
+						"type": "LinkedServiceReference"
+					}
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase",
+						"type": "LinkedServiceReference"
+					},
+					"name": "sink"
+				}
+			],
+			"transformations": [
+				{
+					"name": "select"
+				},
+				{
+					"name": "GenerateHash"
+				},
+				{
+					"name": "lookupLeftJoin"
+				},
+				{
+					"name": "split"
+				},
+				{
+					"name": "updateAuditColumns"
+				},
+				{
+					"name": "alterRow"
+				},
+				{
+					"name": "union"
+				},
+				{
+					"name": "InsertAudit"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          ProductID as integer,",
+				"          ProductName as string,",
+				"          Category as string,",
+				"          Price as decimal(10,2),",
+				"          StockQuantity as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     format: 'parquet',",
+				"     wildcardPaths:['cleanedProductData/*.parquet']) ~> sourceProduct",
+				"source(output(",
+				"          TGT_ProductID as integer,",
+				"          TGT_Hash as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'select ProductID as TGT_ProductID, ProductHash as TGT_Hash from dbo.dim_Products where Is_Active=1',",
+				"     format: 'query') ~> target",
+				"sourceProduct select(mapColumn(",
+				"          each(match(1==1),",
+				"               concat('SRC_',$$) = $$)",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select",
+				"select derive(SRC_Hash = crc32(toString(SRC_ProductID),SRC_ProductName,SRC_Category,toString(SRC_Price),toString(SRC_StockQuantity))) ~> GenerateHash",
+				"GenerateHash, target lookup(SRC_ProductID == TGT_ProductID,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> lookupLeftJoin",
+				"lookupLeftJoin split(isNull(TGT_ProductID),",
+				"     SRC_ProductID==TGT_ProductID && toString(SRC_Hash)!=toString(TGT_Hash),",
+				"     disjoint: false) ~> split@(Insert, Update)",
+				"split@Update derive(src_updatedby = 'dataflow',",
+				"          src_updateddate = currentTimestamp(),",
+				"          is_active = 0) ~> updateAuditColumns",
+				"updateAuditColumns alterRow(updateIf(1==1)) ~> alterRow",
+				"split@Insert, split@Update union(byName: true)~> union",
+				"union derive(Created_by = 'dataflow',",
+				"          updated_by = 'dataflow',",
+				"          updated_date = currentTimestamp(),",
+				"          Created_date = currentTimestamp(),",
+				"          src_Is_Active = 1) ~> InsertAudit",
+				"alterRow sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          ProductID as integer,",
+				"          ProductName as string,",
+				"          Category as string,",
+				"          Price as decimal(10,2),",
+				"          StockQuantity as integer,",
+				"          Created_Date as timestamp,",
+				"          Updated_Date as timestamp,",
+				"          Created_By as string,",
+				"          Updated_By as string,",
+				"          Is_Active as integer,",
+				"          ProductHash as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:false,",
+				"     updateable:true,",
+				"     upsertable:false,",
+				"     keys:['ProductID','ProductHash'],",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          ProductID = TGT_ProductID,",
+				"          ProductHash = TGT_Hash,",
+				"          Updated_By = src_updatedby,",
+				"          Updated_Date = src_updateddate,",
+				"          Is_Active = is_active",
+				"     )) ~> sinkUpdate",
+				"InsertAudit sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          ProductID as integer,",
+				"          ProductName as string,",
+				"          Category as string,",
+				"          Price as decimal(10,2),",
+				"          StockQuantity as integer,",
+				"          Created_Date as timestamp,",
+				"          Updated_Date as timestamp,",
+				"          Created_By as string,",
+				"          Updated_By as string,",
+				"          Is_Active as integer,",
+				"          ProductHash as string",
+				"     ),",
+				"     format: 'table',",
+				"     store: 'sqlserver',",
+				"     schemaName: 'dbo',",
+				"     tableName: 'dim_Products',",
+				"     insertable: true,",
+				"     updateable: false,",
+				"     deletable: false,",
+				"     upsertable: false,",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          ProductID = SRC_ProductID,",
+				"          ProductName = SRC_ProductName,",
+				"          Category = SRC_Category,",
+				"          Price = SRC_Price,",
+				"          StockQuantity = SRC_StockQuantity,",
+				"          Created_Date = Created_date,",
+				"          Updated_Date = updated_date,",
+				"          Created_By = Created_by,",
+				"          Updated_By = updated_by,",
+				"          Is_Active = src_Is_Active,",
+				"          ProductHash = SRC_Hash",
+				"     )) ~> sink"
+			]
+		}
+	}
+}
